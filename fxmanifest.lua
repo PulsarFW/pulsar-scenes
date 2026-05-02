@@ -7,17 +7,17 @@ client_script("@pulsar-pwnzor/client/check.lua")
 description("Scenes")
 name("Scenes")
 author("Dr Nick")
-
+version("1.0.0")
 
 client_scripts({
-	"config/**/*.lua",
-	"client/**/*.lua",
+  "config/**/*.lua",
+  "client/**/*.lua",
 })
 
 server_scripts({
-	"server/**/*.lua",
+  "server/**/*.lua",
 })
 
 shared_scripts({
-	"shared/**/*.lua",
+  "shared/**/*.lua",
 })
