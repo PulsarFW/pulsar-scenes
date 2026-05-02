@@ -7,7 +7,7 @@ client_script("@pulsar-pwnzor/client/check.lua")
 description("Scenes")
 name("Scenes")
 author("Dr Nick")
-version("1.0.0")
+version "1.0.1"
 
 client_scripts({
   "config/**/*.lua",
