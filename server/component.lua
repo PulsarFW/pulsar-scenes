@@ -162,7 +162,7 @@ exports('Create', function(scene, isStaff)
     local coordsJson = json.encode(scene.coords)
     local textJson = json.encode(scene.text)
 
-    exports.oxmysql:execute(
+    exports.oxmysql:insert(
       'INSERT INTO scenes (coords, length, expires, staff, distance, route, text) VALUES (?, ?, ?, ?, ?, ?, ?)',
       { coordsJson, scene.length, scene.expires, scene.staff and 1 or 0, scene.distance, scene.route or 0, textJson },
       function(insertId)
@@ -216,7 +216,7 @@ exports('Edit', function(id, newData, isStaff)
     local coordsJson = json.encode(newData.coords)
     local textJson = json.encode(newData.text)
 
-    exports.oxmysql:execute(
+    exports.oxmysql:update(
       'UPDATE scenes SET coords = ?, length = ?, expires = ?, staff = ?, distance = ?, route = ?, text = ? WHERE _id = ?',
       { coordsJson, newData.length, newData.expires, newData.staff and 1 or 0, newData.distance, newData.route or 0,
         textJson, id },
@@ -237,7 +237,7 @@ end)
 
 exports('Delete', function(id)
   local p = promise.new()
-  exports.oxmysql:execute('DELETE FROM scenes WHERE _id = ?', { id }, function(affectedRows)
+  exports.oxmysql:update('DELETE FROM scenes WHERE _id = ?', { id }, function(affectedRows)
     local success = affectedRows and affectedRows > 0
     p:resolve(success)
 
@@ -265,7 +265,7 @@ function DeleteExpiredScenes(deleteRouted)
     params = { 0, currentTime }
   end
 
-  exports.oxmysql:execute(query, params, function(affectedRows)
+  exports.oxmysql:update(query, params, function(affectedRows)
     if affectedRows then
       p:resolve(affectedRows)
     else

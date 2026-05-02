@@ -16,11 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Bundle files
-        run: |
-          mkdir -p ./temp/pulsar-scenes
-          cp ./{README.md,fxmanifest.lua} ./temp/pulsar-scenes
-          cp -r ./{client,config,server,shared,stream} ./temp/pulsar-scenes
-          cd ./temp && zip -r ../pulsar-scenes.zip ./pulsar-scenes
+        run: zip -r pulsar-scenes.zip . -x '*/.github/*' -x '*/node_modules/*'
 
       - name: Create release
         uses: softprops/action-gh-release@v2
