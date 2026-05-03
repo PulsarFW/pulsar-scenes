@@ -412,6 +412,9 @@ function EditScene(id, scene, data)
 		return
 	end
 	local creatingSceneData = deepcopy(scene)
+	if not creatingSceneData.background then
+		creatingSceneData.background = deepcopy(_defaultSceneData.background)
+	end
 
 	_creationMenu = exports['pulsar-menu']:Create("scenes", "Edit Scene", function()
 		_creationOpen = true

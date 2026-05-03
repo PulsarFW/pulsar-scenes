@@ -161,10 +161,11 @@ exports('Create', function(scene, isStaff)
     local p = promise.new()
     local coordsJson = json.encode(scene.coords)
     local textJson = json.encode(scene.text)
+    local backgroundJson = json.encode(scene.background)
 
     exports.oxmysql:insert(
-      'INSERT INTO scenes (coords, length, expires, staff, distance, route, text) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      { coordsJson, scene.length, scene.expires, scene.staff and 1 or 0, scene.distance, scene.route or 0, textJson },
+      'INSERT INTO scenes (coords, length, expires, staff, distance, route, text, background) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      { coordsJson, scene.length, scene.expires, scene.staff and 1 or 0, scene.distance, scene.route or 0, textJson, backgroundJson },
       function(insertId)
         if insertId and insertId > 0 then
           scene._id = insertId
@@ -215,11 +216,12 @@ exports('Edit', function(id, newData, isStaff)
     local p = promise.new()
     local coordsJson = json.encode(newData.coords)
     local textJson = json.encode(newData.text)
+    local backgroundJson = json.encode(newData.background)
 
     exports.oxmysql:update(
-      'UPDATE scenes SET coords = ?, length = ?, expires = ?, staff = ?, distance = ?, route = ?, text = ? WHERE _id = ?',
+      'UPDATE scenes SET coords = ?, length = ?, expires = ?, staff = ?, distance = ?, route = ?, text = ?, background = ? WHERE _id = ?',
       { coordsJson, newData.length, newData.expires, newData.staff and 1 or 0, newData.distance, newData.route or 0,
-        textJson, id },
+        textJson, backgroundJson, id },
       function(affectedRows)
         if affectedRows and affectedRows > 0 then
           newData._id = id
@@ -289,6 +291,9 @@ function LoadScenesFromDB()
           end
           if v.text then
             v.text = json.decode(v.text)
+          end
+          if v.background then
+            v.background = json.decode(v.background)
           end
           v.staff = v.staff == 1
 
