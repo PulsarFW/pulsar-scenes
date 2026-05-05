@@ -16,7 +16,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Bundle files
-        run: zip -r pulsar-scenes.zip . -x '*/.github/*' -x '*/node_modules/*'
+        run: |
+          mkdir -p staging/pulsar-scenes
+          rsync -a --exclude='.github' --exclude='node_modules' --exclude='staging' . staging/pulsar-scenes/
+          cd staging && zip -r ../pulsar-scenes.zip pulsar-scenes/
 
       - name: Create release
         uses: softprops/action-gh-release@v2
