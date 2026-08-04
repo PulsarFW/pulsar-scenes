@@ -1,7 +1,7 @@
 function DrawScene(sceneData)
     local onScreen, x, y = GetScreenCoordFromWorldCoord(sceneData.coords.x, sceneData.coords.y, sceneData.coords.z)
     if onScreen then
-        local pedCoords = GetEntityCoords(LocalPlayer.state.ped)
+        local pedCoords = GetEntityCoords(PlayerPedId())
 
         local dist = #(GetGameplayCamCoord() - sceneData.coords)
         local scale = ((1 / dist) * 2) * (1 / GetGameplayCamFov()) * 80
@@ -12,9 +12,15 @@ function DrawScene(sceneData)
             rangeAlpha = 40
         end
 
+        local fontData = _sceneFonts[sceneData.text.font]
+        if fontData.file then
+            -- streamed .gfx fonts get evicted if nothing keeps re-requesting them; re-pin every draw
+            RegisterFontFile(fontData.file)
+        end
+
         SetTextColour(sceneData.text.color.r, sceneData.text.color.g, sceneData.text.color.b, rangeAlpha)
 		SetTextScale(0.0 * scale, sceneData.text.size * scale)
-		SetTextFont(_sceneFonts[sceneData.text.font].font)
+		SetTextFont(fontData.font)
 		SetTextProportional(1)
 		SetTextCentre(true)
 		SetTextWrap(0.0, 1.0)
@@ -33,8 +39,8 @@ function DrawScene(sceneData)
             HandleLongString(sceneData.text.text)
         end
 
-        local textHeight = GetTextScaleHeight(sceneData.text.size * scale, _sceneFonts[sceneData.text.font].font)
-		local textWidth = EndTextCommandGetWidth(_sceneFonts[sceneData.text.font].font)
+        local textHeight = GetTextScaleHeight(sceneData.text.size * scale, fontData.font)
+		local textWidth = EndTextCommandGetWidth(fontData.font)
 
         SetTextEntry("THREESTRINGS")
 		AddTextComponentString(sceneData.text.text)
@@ -48,6 +54,9 @@ function DrawScene(sceneData)
             if rangeAlpha > sceneData.background.opacity then
                 rangeAlpha = sceneData.background.opacity
             end
+
+            -- same eviction issue as streamed fonts: re-pin every draw or the dict can drop out
+            RequestStreamedTextureDict('arpscenes', true)
 
             DrawSprite(
                 'arpscenes',

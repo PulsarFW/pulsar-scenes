@@ -3,36 +3,38 @@ _nearbyScenes = {}
 
 _hiddenScenes = {}
 
-AddEventHandler('onClientResourceStart', function(resource)
-	if resource == GetCurrentResourceName() then
-		Wait(1000)
-		exports["pulsar-kbs"]:Add("scene_create", "", "keyboard", "Scenes - Create Scene", function()
-			exports['pulsar-scenes']:BeginCreation()
-		end)
-	end
+CreateThread(function()
+	plsr.Keybinds:Add("scene_create", "", "keyboard", "Scenes - Create Scene", function()
+		plsr.Scenes:BeginCreation()
+	end)
 end)
+
+function RefreshNearbyScenes()
+	local playerCoords = GetEntityCoords(PlayerPedId())
+	local nearby = {}
+
+	for k, v in pairs(_loadedScenes) do
+		if (#(playerCoords - v.coords) <= 75.0) and (v.route == plsr.State.flags.currentRoute) then
+			table.insert(nearby, v)
+		end
+	end
+
+	_nearbyScenes = nearby
+end
 
 RegisterNetEvent("Characters:Client:Spawn")
 AddEventHandler("Characters:Client:Spawn", function()
 	CreateThread(function()
-		while LocalPlayer.state.loggedIn do
+		while plsr.State.flags.loggedIn do
+			RefreshNearbyScenes()
 			Wait(2000)
-			local playerCoords = GetEntityCoords(LocalPlayer.state.ped)
-			_nearbyScenes = {}
-			collectgarbage()
-
-			for k, v in pairs(_loadedScenes) do
-				if (#(playerCoords - v.coords) <= 75.0) and (v.route == LocalPlayer.state.currentRoute) then
-					table.insert(_nearbyScenes, v)
-				end
-			end
 		end
 	end)
 
 	CreateThread(function()
-		while LocalPlayer.state.loggedIn do
+		while plsr.State.flags.loggedIn do
 			if #_nearbyScenes > 0 then
-				local playerCoords = GetEntityCoords(LocalPlayer.state.ped)
+				local playerCoords = GetEntityCoords(PlayerPedId())
 				for k, v in ipairs(_nearbyScenes) do
 					if #(playerCoords - v.coords) <= v.distance and not _hiddenScenes[v._id] then
 						DrawScene(v)
@@ -54,124 +56,128 @@ RegisterNetEvent("Scenes:Client:RecieveScenes", function(scenes)
 	end
 
 	_loadedScenes = scenes
+	RefreshNearbyScenes()
 end)
 
 RegisterNetEvent("Scenes:Client:AddScene", function(id, scene)
 	scene.coords = vector3(scene.coords.x, scene.coords.y, scene.coords.z)
 	_loadedScenes[id] = scene
+	RefreshNearbyScenes()
 end)
 
 RegisterNetEvent("Scenes:Client:RemoveScene", function(id)
 	_loadedScenes[id] = nil
+	RefreshNearbyScenes()
 end)
 
 RegisterNetEvent("Scenes:Client:RemoveScenes", function(ids)
 	for k, v in ipairs(ids) do
 		_loadedScenes[v] = nil
 	end
+	RefreshNearbyScenes()
 end)
 
 _creationOpen = false
 _creationMenu = nil
 
-exports('BeginCreation', function(text, staff)
-	if _creationOpen then
-		return
-	end
+_SCENES = {
+	BeginCreation = function(self, text, staff)
+		if _creationOpen then
+			return
+		end
 
-	local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, LocalPlayer.state.ped)
+		local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, PlayerPedId())
 
-	if not hitting then
-		return exports["pulsar-hud"]:Notification("error", "Cannot Place Here")
-	end
+		if not hitting then
+			return plsr.Notification:Error("Cannot Place Here")
+		end
 
-	if #(GetEntityCoords(LocalPlayer.state.ped) - endCoords) > 5.0 then
-		return exports["pulsar-hud"]:Notification("error", "Cannot Place That Far Away")
-	end
+		if #(GetEntityCoords(PlayerPedId()) - endCoords) > 5.0 then
+			return plsr.Notification:Error("Cannot Place That Far Away")
+		end
 
-	if IsEntityAVehicle(entity) or IsEntityAPed(entity) then
-		return exports["pulsar-hud"]:Notification("error", "Cannot Place On a Vehicle or Person")
-	end
+		if IsEntityAVehicle(entity) or IsEntityAPed(entity) then
+			return plsr.Notification:Error("Cannot Place On a Vehicle or Person")
+		end
 
-	exports['pulsar-hud']:InputShow(
-		"Scene Creation",
-		"Scene Text. Use ~n~ For a Newline",
-		{
+		plsr.Input:Show(
+			"Scene Creation",
+			"Scene Text. Use ~n~ For a Newline",
 			{
-				id = "text",
-				type = "multiline",
-				options = {
-					inputProps = {
-						value = text,
-						maxLength = 290,
+				{
+					id = "text",
+					type = "multiline",
+					options = {
+						inputProps = {
+							value = text,
+							maxLength = 290,
+						},
 					},
 				},
 			},
-		},
-		"Scenes:Client:OpenOptionsMenu",
-		{
-			staff = staff,
-			coords = endCoords,
-			entity = entity,
-		}
-	)
-end)
-
-exports('Deletion', function()
-	if _nearbyScenes and #_nearbyScenes > 0 then
-		local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, LocalPlayer.state.ped)
-		if hitting and endCoords then
-			local pedCoords = GetEntityCoords(LocalPlayer.state.ped)
-			local lastDist = nil
-			local lastId = nil
-			for k, v in pairs(_nearbyScenes) do
-				local dist = #(pedCoords - v.coords)
-				if (not lastDist) or (lastDist and dist < lastDist) then
-					lastDist = dist
-					lastId = v._id
-				end
-			end
-
-			exports["pulsar-core"]:ServerCallback("Scenes:Delete", lastId, function(success, invalidPermissions)
-				if success then
-					exports["pulsar-hud"]:Notification("success", "Scene Deleted")
-				else
-					if invalidPermissions then
-						exports["pulsar-hud"]:Notification("error", "Invalid Permissions to Delete This Scene")
-					else
-						exports["pulsar-hud"]:Notification("error", "Failed to Delete Scene")
+			"Scenes:Client:OpenOptionsMenu",
+			{
+				staff = staff,
+				coords = endCoords,
+				entity = entity,
+			}
+		)
+	end,
+	Deletion = function(self)
+		if _nearbyScenes and #_nearbyScenes > 0 then
+			local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, PlayerPedId())
+			if hitting and endCoords then
+				local pedCoords = GetEntityCoords(PlayerPedId())
+				local lastDist = nil
+				local lastId = nil
+				for k, v in pairs(_nearbyScenes) do
+					local dist = #(pedCoords - v.coords)
+					if (not lastDist) or (lastDist and dist < lastDist) then
+						lastDist = dist
+						lastId = v._id
 					end
 				end
-			end)
-		end
-	end
-end)
 
-exports('Edit', function()
-	if _nearbyScenes and #_nearbyScenes > 0 then
-		local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, LocalPlayer.state.ped)
-		if hitting and endCoords then
-			local pedCoords = GetEntityCoords(LocalPlayer.state.ped)
-			local lastDist = nil
-			local lastId = nil
-			for k, v in pairs(_nearbyScenes) do
-				local dist = #(pedCoords - v.coords)
-				if (not lastDist) or (lastDist and dist < lastDist) then
-					lastDist = dist
-					lastId = v._id
-				end
+				plsr.Callbacks:ServerCallback("Scenes:Delete", lastId, function(success, invalidPermissions)
+					if success then
+						plsr.Notification:Success("Scene Deleted")
+					else
+						if invalidPermissions then
+							plsr.Notification:Error("Invalid Permissions to Delete This Scene")
+						else
+							plsr.Notification:Error("Failed to Delete Scene")
+						end
+					end
+				end)
 			end
-
-			exports["pulsar-core"]:ServerCallback("Scenes:CanEdit", lastId, function(success, isStaff)
-				if success then
-					EditScene(lastId, _loadedScenes[lastId], { staff = isStaff })
-				else
-					exports["pulsar-hud"]:Notification("error", "Invalid Permissions to Edit This Scene")
-				end
-			end)
 		end
-	end
-end)
+	end,
+	Edit = function(self)
+		if _nearbyScenes and #_nearbyScenes > 0 then
+			local hitting, endCoords, entity = GetEntityPlayerIsLookingAt(15.0, PlayerPedId())
+			if hitting and endCoords then
+				local pedCoords = GetEntityCoords(PlayerPedId())
+				local lastDist = nil
+				local lastId = nil
+				for k, v in pairs(_nearbyScenes) do
+					local dist = #(pedCoords - v.coords)
+					if (not lastDist) or (lastDist and dist < lastDist) then
+						lastDist = dist
+						lastId = v._id
+					end
+				end
+
+				plsr.Callbacks:ServerCallback("Scenes:CanEdit", lastId, function(success, isStaff)
+					if success then
+						EditScene(lastId, _loadedScenes[lastId], { staff = isStaff })
+					else
+						plsr.Notification:Error("Invalid Permissions to Edit This Scene")
+					end
+				end)
+			end
+		end
+	end,
+}
 
 _lastData = nil
 
@@ -188,14 +194,14 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 	creatingSceneData.text.text = SanitizeEmojis(values.text)
 
 	if (creatingSceneData.text.text == nil or creatingSceneData.text.text == "") then
-		exports["pulsar-hud"]:Notification("error", "Scene Creation Cancelled - No Valid Characters In Scene Text")
+		plsr.Notification:Error("Scene Creation Cancelled - No Valid Characters In Scene Text")
 		return
 	end
 
 	creatingSceneData.coords = vector3(data.coords.x, data.coords.y, data.coords.z)
-	creatingSceneData.route = LocalPlayer.state.currentRoute
+	creatingSceneData.route = plsr.State.flags.currentRoute
 
-	_creationMenu = exports['pulsar-menu']:Create("scenes", "Scene Creation", function()
+	_creationMenu = plsr.Menu:Create("scenes", "Scene Creation", function()
 		_creationOpen = true
 		CreateThread(function()
 			while _creationOpen do
@@ -206,8 +212,8 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 
 		CreateThread(function()
 			while _creationOpen do
-				if #(GetEntityCoords(LocalPlayer.state.ped) - creatingSceneData.coords) > 10.0 then
-					exports["pulsar-hud"]:Notification("error", "Scene Creation Cancelled - Too Far Away")
+				if #(GetEntityCoords(PlayerPedId()) - creatingSceneData.coords) > 10.0 then
+					plsr.Notification:Error("Scene Creation Cancelled - Too Far Away")
 
 					_creationMenu:Close()
 					break
@@ -272,9 +278,9 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 		disabled = false,
 		current = creatingSceneData.text.outline,
 		list = {
-			{ label = "None",    value = false },
+			{ label = "None", value = false },
 			{ label = "Outline", value = "outline" },
-			{ label = "Shadow",  value = "shadow" },
+			{ label = "Shadow", value = "shadow" },
 		},
 	}, function(data)
 		creatingSceneData.text.outline = data.data.value
@@ -360,10 +366,10 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 	end)
 
 	local timeList = {
-		{ label = "1 Hour",   value = 1 },
-		{ label = "2 Hours",  value = 2 },
-		{ label = "3 Hours",  value = 3 },
-		{ label = "6 Hours",  value = 6 },
+		{ label = "1 Hour", value = 1 },
+		{ label = "2 Hours", value = 2 },
+		{ label = "3 Hours", value = 3 },
+		{ label = "6 Hours", value = 6 },
 		{ label = "12 Hours", value = 12 },
 		{ label = "24 Hours", value = 24 },
 	}
@@ -390,14 +396,14 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 	_creationMenu.Add:Button("Create Scene", { success = true }, function()
 		_lastData = creatingSceneData
 
-		exports["pulsar-core"]:ServerCallback("Scenes:Create", {
+		plsr.Callbacks:ServerCallback("Scenes:Create", {
 			scene = creatingSceneData,
 			data = data,
 		}, function(success)
 			if success then
-				exports["pulsar-hud"]:Notification("success", "Scene Placed")
+				plsr.Notification:Success("Scene Placed")
 			else
-				exports["pulsar-hud"]:Notification("error", "Failed to Place Scene")
+				plsr.Notification:Error("Failed to Place Scene")
 			end
 		end)
 
@@ -407,31 +413,28 @@ AddEventHandler("Scenes:Client:OpenOptionsMenu", function(values, data)
 	_creationMenu:Show()
 end)
 
-function EditScene(id, scene, data)
+function EditScene(id, fuckface, data)
 	if _creationOpen then
 		return
 	end
-	local creatingSceneData = deepcopy(scene)
-	if not creatingSceneData.background then
-		creatingSceneData.background = deepcopy(_defaultSceneData.background)
-	end
+	local creatingSceneData = deepcopy(fuckface)
 
-	_creationMenu = exports['pulsar-menu']:Create("scenes", "Edit Scene", function()
+	_creationMenu = plsr.Menu:Create("scenes", "Edit Scene", function()
 		_creationOpen = true
-		_hiddenScenes[scene._id] = true
+		_hiddenScenes[fuckface._id] = true
 		CreateThread(function()
 			while _creationOpen do
 				DrawScene(creatingSceneData)
 				Wait(2)
 			end
 
-			_hiddenScenes[scene._id] = nil
+			_hiddenScenes[fuckface._id] = nil
 		end)
 
 		CreateThread(function()
 			while _creationOpen do
-				if #(GetEntityCoords(LocalPlayer.state.ped) - creatingSceneData.coords) > 10.0 then
-					exports["pulsar-hud"]:Notification("error", "Scene Edit Cancelled - Too Far Away")
+				if #(GetEntityCoords(PlayerPedId()) - creatingSceneData.coords) > 10.0 then
+					plsr.Notification:Error("Scene Edit Cancelled - Too Far Away")
 
 					_creationMenu:Close()
 					break
@@ -491,9 +494,9 @@ function EditScene(id, scene, data)
 		disabled = false,
 		current = creatingSceneData.text.outline,
 		list = {
-			{ label = "None",    value = false },
+			{ label = "None", value = false },
 			{ label = "Outline", value = "outline" },
-			{ label = "Shadow",  value = "shadow" },
+			{ label = "Shadow", value = "shadow" },
 		},
 	}, function(data)
 		creatingSceneData.text.outline = data.data.value
@@ -579,10 +582,10 @@ function EditScene(id, scene, data)
 	end)
 
 	local timeList = {
-		{ label = "1 Hour",   value = 1 },
-		{ label = "2 Hours",  value = 2 },
-		{ label = "3 Hours",  value = 3 },
-		{ label = "6 Hours",  value = 6 },
+		{ label = "1 Hour", value = 1 },
+		{ label = "2 Hours", value = 2 },
+		{ label = "3 Hours", value = 3 },
+		{ label = "6 Hours", value = 6 },
 		{ label = "12 Hours", value = 12 },
 		{ label = "24 Hours", value = 24 },
 	}
@@ -607,15 +610,15 @@ function EditScene(id, scene, data)
 	end)
 
 	_creationMenu.Add:Button("Edit Scene", { success = true }, function()
-		exports["pulsar-core"]:ServerCallback("Scenes:Edit", {
+		plsr.Callbacks:ServerCallback("Scenes:Edit", {
 			id = id,
 			scene = creatingSceneData,
 			data = data,
 		}, function(success)
 			if success then
-				exports["pulsar-hud"]:Notification("success", "Scene Edited")
+				plsr.Notification:Success("Scene Edited")
 			else
-				exports["pulsar-hud"]:Notification("error", "Failed to Edit Scene")
+				plsr.Notification:Error("Failed to Edit Scene")
 			end
 		end)
 
@@ -625,16 +628,20 @@ function EditScene(id, scene, data)
 	_creationMenu:Show()
 end
 
+AddEventHandler("Proxy:Shared:RegisterReady", function()
+	exports["pulsar_core"]:RegisterComponent("Scenes", _SCENES)
+end)
+
 RegisterNetEvent("Scenes:Client:Creation", function(args, asStaff)
-	exports['pulsar-scenes']:BeginCreation(#args > 0 and table.concat(args, " ") or nil, asStaff)
+	plsr.Scenes:BeginCreation(#args > 0 and table.concat(args, " ") or nil, asStaff)
 end)
 
 RegisterNetEvent("Scenes:Client:Deletion", function()
-	exports['pulsar-scenes']:Deletion()
+	plsr.Scenes:Deletion()
 end)
 
 RegisterNetEvent("Scenes:Client:StartEdit", function()
-	exports['pulsar-scenes']:Edit()
+	plsr.Scenes:Edit()
 end)
 
 CreateThread(function()
